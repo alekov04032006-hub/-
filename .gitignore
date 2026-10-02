@@ -1,9 +1,10 @@
-﻿# Виртуальное окружение
+# Виртуальное окружение
 venv/
 .venv/
 env/
 
 # Кэш Python
+.pytest_cache/
 __pycache__/
 *.py[cod]
 
