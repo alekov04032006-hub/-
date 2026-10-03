@@ -1,4 +1,6 @@
-"""Вспомогательные функции для безопасного ввода."""
+"""Вспомогательные функции интерфейса."""
+
+from models.status import Status
 
 
 def input_int(prompt: str) -> int:
@@ -19,14 +21,17 @@ def input_non_empty(prompt: str) -> str:
         print("Ошибка: поле не должно быть пустым.")
 
 
-def choose_status(statuses: tuple[str, ...]) -> str:
-    """Показать статусы и вернуть выбранный."""
+def choose_status(statuses: list[Status]) -> Status:
+    """Показать статусы и вернуть выбранный объект Status."""
     print("\nСтатусы:")
-    for index, status in enumerate(statuses, start=1):
-        print(f"{index}. {status}")
-
+    for status in statuses:
+        print(f"{status.id}. {status.name}")
     while True:
         choice = input_int("Выберите статус: ")
-        if 1 <= choice <= len(statuses):
-            return statuses[choice - 1]
+        status = next(
+            (item for item in statuses if item.id == choice),
+            None,
+        )
+        if status is not None:
+            return status
         print("Ошибка: такого пункта нет.")

@@ -7,9 +7,9 @@ from complaints import (
     find_complaint,
     find_complaints_by_status,
     find_complaints_by_user,
-    format_complaint,
     get_complaint_by_id,
     show_complaints,
+    sort_complaints,
 )
 from objects import (
     add_object,
@@ -17,36 +17,58 @@ from objects import (
     get_object_by_id,
     show_objects,
 )
-from statuses import STATUSES
-from storage import load_json, save_json
+from statuses import create_default_statuses
+from storage import (
+    load_complaints,
+    load_objects,
+    load_statuses,
+    load_users,
+    save_complaints,
+    save_objects,
+    save_statuses,
+    save_users,
+)
 from users import add_user, find_user, get_user_by_id, show_users
 from utils import choose_status, input_int, input_non_empty
 
 DATA_DIR = "data"
 USERS_FILE = f"{DATA_DIR}/users.json"
 OBJECTS_FILE = f"{DATA_DIR}/objects.json"
+STATUSES_FILE = f"{DATA_DIR}/statuses.json"
 COMPLAINTS_FILE = f"{DATA_DIR}/complaints.json"
 
 
-def show_search_results(
-    complaints: list[dict],
-    users: list[dict],
-    objects: list[dict],
-) -> None:
-    """Вывести найденные жалобы или сообщение об отсутствии результатов."""
+def show_results(complaints: list) -> None:
+    """Вывести найденные жалобы."""
     if not complaints:
         print("Ничего не найдено.")
         return
     for complaint in complaints:
-        print(format_complaint(complaint, users, objects))
+        print(complaint)
         print("-" * 70)
+
+
+def save_all(users, objects, statuses, complaints) -> None:
+    """Сохранить все данные проекта."""
+    save_users(USERS_FILE, users)
+    save_objects(OBJECTS_FILE, objects)
+    save_statuses(STATUSES_FILE, statuses)
+    save_complaints(COMPLAINTS_FILE, complaints)
 
 
 def main() -> None:
     """Запустить главное меню программы."""
-    users = load_json(USERS_FILE, [])
-    objects = load_json(OBJECTS_FILE, [])
-    complaints = load_json(COMPLAINTS_FILE, [])
+    users = load_users(USERS_FILE)
+    objects = load_objects(OBJECTS_FILE)
+    statuses = load_statuses(STATUSES_FILE)
+    if not statuses:
+        statuses = create_default_statuses()
+    complaints = load_complaints(
+        COMPLAINTS_FILE,
+        users,
+        objects,
+        statuses,
+    )
 
     while True:
         print("\n=== Система учета жалоб пользователей ===")
@@ -56,132 +78,110 @@ def main() -> None:
         print("4. Показать объекты")
         print("5. Добавить объект")
         print("6. Найти объект")
-        print("7. Показать жалобы")
-        print("8. Создать жалобу")
-        print("9. Найти жалобу по описанию")
-        print("10. Найти жалобы пользователя")
-        print("11. Найти жалобы по статусу")
-        print("12. Изменить статус жалобы")
-        print("13. Сортировать жалобы")
-        print("14. Статистика жалоб")
+        print("7. Показать статусы")
+        print("8. Показать жалобы")
+        print("9. Создать жалобу")
+        print("10. Найти жалобу по описанию")
+        print("11. Найти жалобы пользователя")
+        print("12. Найти жалобы по статусу")
+        print("13. Изменить статус жалобы")
+        print("14. Сортировать жалобы")
+        print("15. Статистика жалоб")
         print("0. Выход")
 
         choice = input_int("\nВыберите действие: ")
 
         if choice == 0:
-            save_json(USERS_FILE, users)
-            save_json(OBJECTS_FILE, objects)
-            save_json(COMPLAINTS_FILE, complaints)
+            save_all(users, objects, statuses, complaints)
             print("Данные сохранены. Программа завершена.")
             break
 
         if choice == 1:
             show_users(users)
-
         elif choice == 2:
             name = input_non_empty("Введите имя пользователя: ")
             email = input_non_empty("Введите email: ")
             user = add_user(users, name, email)
-            print(f"Пользователь добавлен. ID: {user['id']}")
-
+            print(f"Пользователь добавлен: {user}")
         elif choice == 3:
             query = input_non_empty("Введите имя или email: ")
-            results = find_user(users, query)
-            if results:
-                for user in results:
-                    print(f"{user['id']}: {user['name']} | {user['email']}")
+            result = find_user(users, query)
+            if result:
+                for user in result:
+                    print(user)
             else:
                 print("Пользователь не найден.")
-
         elif choice == 4:
             show_objects(objects)
-
         elif choice == 5:
             name = input_non_empty("Введите название объекта: ")
             description = input_non_empty("Введите описание объекта: ")
             item = add_object(objects, name, description)
-            print(f"Объект добавлен. ID: {item['id']}")
-
+            print(f"Объект добавлен: {item}")
         elif choice == 6:
             query = input_non_empty("Введите название объекта: ")
-            results = find_object(objects, query)
-            if results:
-                for item in results:
-                    print(
-                        f"{item['id']}: {item['name']} | "
-                        f"{item['description']}"
-                    )
+            result = find_object(objects, query)
+            if result:
+                for item in result:
+                    print(f"{item} | {item.description}")
             else:
                 print("Объект не найден.")
-
         elif choice == 7:
-            show_complaints(complaints, users, objects)
-
+            for status in statuses:
+                print(status)
         elif choice == 8:
+            show_complaints(complaints)
+        elif choice == 9:
             show_users(users)
             user_id = input_int("Введите ID пользователя: ")
-            if not get_user_by_id(users, user_id):
-                print("Ошибка: пользователь не найден.")
+            user = get_user_by_id(users, user_id)
+            if user is None:
+                print("Пользователь не найден.")
                 continue
-
             show_objects(objects)
             object_id = input_int("Введите ID объекта: ")
-            if not get_object_by_id(objects, object_id):
-                print("Ошибка: объект не найден.")
+            complaint_object = get_object_by_id(objects, object_id)
+            if complaint_object is None:
+                print("Объект не найден.")
                 continue
-
+            new_status = next(
+                status for status in statuses if status.id == 1
+            )
             description = input_non_empty("Введите описание проблемы: ")
             complaint = create_complaint(
                 complaints,
-                user_id,
-                object_id,
+                user,
+                complaint_object,
+                new_status,
                 description,
             )
-            if complaint is None:
-                print("Ошибка: некорректные данные жалобы.")
-            else:
-                print("\nЖалоба создана:")
-                print(format_complaint(complaint, users, objects))
-
-        elif choice == 9:
-            query = input_non_empty("Введите текст для поиска: ")
-            results = find_complaint(complaints, query)
-            show_search_results(results, users, objects)
-
+            print("\nЖалоба создана:")
+            print(complaint)
         elif choice == 10:
-            user_id = input_int("Введите ID пользователя: ")
-            results = find_complaints_by_user(complaints, user_id)
-            show_search_results(results, users, objects)
-
+            query = input_non_empty("Введите текст для поиска: ")
+            show_results(find_complaint(complaints, query))
         elif choice == 11:
-            status = choose_status(STATUSES)
-            results = find_complaints_by_status(complaints, status)
-            show_search_results(results, users, objects)
-
+            user_id = input_int("Введите ID пользователя: ")
+            show_results(find_complaints_by_user(complaints, user_id))
         elif choice == 12:
+            status = choose_status(statuses)
+            show_results(find_complaints_by_status(complaints, status.id))
+        elif choice == 13:
             complaint_id = input_int("Введите ID жалобы: ")
-            if not get_complaint_by_id(complaints, complaint_id):
+            if get_complaint_by_id(complaints, complaint_id) is None:
                 print("Жалоба не найдена.")
                 continue
-
-            status = choose_status(STATUSES)
-            if change_status(complaints, complaint_id, status):
-                print("Статус жалобы изменен.")
-
-        elif choice == 13:
-            sorted_complaints = sorted(
-                complaints,
-                key=lambda item: item["created_at"],
-            )
-            show_search_results(sorted_complaints, users, objects)
-
+            status = choose_status(statuses)
+            change_status(complaints, complaint_id, status)
+            print("Статус жалобы изменен.")
         elif choice == 14:
+            show_results(sort_complaints(complaints))
+        elif choice == 15:
             statistics = complaint_statistics(complaints)
             print("\n--- Статистика ---")
             print(f"Всего жалоб: {len(complaints)}")
             for status, count in statistics.items():
                 print(f"{status}: {count}")
-
         else:
             print("Ошибка: неизвестный пункт меню.")
 

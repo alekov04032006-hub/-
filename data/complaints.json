@@ -3,16 +3,16 @@
         "id": 1,
         "user_id": 1,
         "object_id": 1,
+        "status_id": 1,
         "description": "Не работает авторизация",
-        "status": "Новая",
         "created_at": "2026-10-02 16:00:00"
     },
     {
         "id": 2,
         "user_id": 2,
         "object_id": 2,
+        "status_id": 2,
         "description": "Приложение закрывается при запуске",
-        "status": "На рассмотрении",
         "created_at": "2026-10-02 16:05:00"
     }
 ]

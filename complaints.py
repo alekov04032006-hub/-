@@ -1,161 +1,118 @@
-"""Функции для работы с жалобами."""
+"""Функции работы с коллекцией объектов Complaint."""
 
 from datetime import datetime
 
-from statuses import STATUSES
-
-
-def validate_complaint(
-    user_id: int,
-    object_id: int,
-    description: str,
-) -> bool:
-    """Проверить корректность данных жалобы."""
-    return user_id > 0 and object_id > 0 and bool(description.strip())
+from models.complaint import Complaint
+from models.complaint_object import ComplaintObject
+from models.status import Status
+from models.user import User
 
 
 def create_complaint(
-    complaints: list[dict],
-    user_id: int,
-    object_id: int,
+    complaints: list[Complaint],
+    user: User,
+    complaint_object: ComplaintObject,
+    status: Status,
     description: str,
-) -> dict | None:
-    """Создать новую жалобу со статусом «Новая»."""
-    if not validate_complaint(user_id, object_id, description):
-        return None
-
-    next_id = max((item["id"] for item in complaints), default=0) + 1
-    complaint = {
-        "id": next_id,
-        "user_id": user_id,
-        "object_id": object_id,
-        "description": description.strip(),
-        "status": STATUSES[0],
-        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    }
+) -> Complaint:
+    """Создать жалобу и добавить ее в коллекцию."""
+    next_id = max((item.id for item in complaints), default=0) + 1
+    complaint = Complaint(
+        complaint_id=next_id,
+        user=user,
+        complaint_object=complaint_object,
+        status=status,
+        description=description.strip(),
+        created_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    )
     complaints.append(complaint)
     return complaint
 
 
-def get_complaint_status(complaint: dict) -> str:
-    """Вернуть текущий статус жалобы."""
-    return complaint["status"]
-
-
 def find_complaint(
-    complaints: list[dict],
+    complaints: list[Complaint],
     query: str,
-) -> list[dict]:
-    """Найти жалобы по описанию."""
+) -> list[Complaint]:
+    """Найти жалобы по тексту описания."""
     query = query.lower()
     return [
-        item
-        for item in complaints
-        if query in item["description"].lower()
+        complaint
+        for complaint in complaints
+        if query in complaint.description.lower()
     ]
 
 
 def find_complaints_by_user(
-    complaints: list[dict],
+    complaints: list[Complaint],
     user_id: int,
-) -> list[dict]:
+) -> list[Complaint]:
     """Найти жалобы конкретного пользователя."""
-    return [item for item in complaints if item["user_id"] == user_id]
+    return [
+        complaint
+        for complaint in complaints
+        if complaint.user.id == user_id
+    ]
 
 
 def find_complaints_by_status(
-    complaints: list[dict],
-    status: str,
-) -> list[dict]:
-    """Найти жалобы с указанным статусом."""
-    return [item for item in complaints if item["status"] == status]
-
-
-def change_status(
-    complaints: list[dict],
-    complaint_id: int,
-    new_status: str,
-) -> bool:
-    """Изменить статус жалобы."""
-    if new_status not in STATUSES:
-        return False
-
-    for complaint in complaints:
-        if complaint["id"] == complaint_id:
-            complaint["status"] = new_status
-            return True
-    return False
-
-
-def sort_complaints(complaints: list[dict]) -> list[dict]:
-    """Вернуть жалобы, отсортированные по дате создания."""
-    return sorted(
-        complaints,
-        key=lambda complaint: complaint["created_at"],
-    )
-
-
-def complaint_statistics(complaints: list[dict]) -> dict[str, int]:
-    """Посчитать количество жалоб по статусам."""
-    statistics = {status: 0 for status in STATUSES}
-    for complaint in complaints:
-        status = complaint["status"]
-        statistics[status] = statistics.get(status, 0) + 1
-    return statistics
+    complaints: list[Complaint],
+    status_id: int,
+) -> list[Complaint]:
+    """Найти жалобы по идентификатору статуса."""
+    return [
+        complaint
+        for complaint in complaints
+        if complaint.status.id == status_id
+    ]
 
 
 def get_complaint_by_id(
-    complaints: list[dict],
+    complaints: list[Complaint],
     complaint_id: int,
-) -> dict | None:
+) -> Complaint | None:
     """Найти жалобу по идентификатору."""
+    return next(
+        (
+            complaint for complaint in complaints
+            if complaint.id == complaint_id
+        ),
+        None,
+    )
+
+
+def change_status(
+    complaints: list[Complaint],
+    complaint_id: int,
+    status: Status,
+) -> bool:
+    """Изменить статус жалобы через метод объекта."""
+    complaint = get_complaint_by_id(complaints, complaint_id)
+    if complaint is None:
+        return False
+    complaint.change_status(status)
+    return True
+
+
+def sort_complaints(complaints: list[Complaint]) -> list[Complaint]:
+    """Вернуть жалобы, отсортированные по дате."""
+    return sorted(complaints, key=lambda complaint: complaint.created_at)
+
+
+def complaint_statistics(complaints: list[Complaint]) -> dict[str, int]:
+    """Посчитать количество жалоб по статусам."""
+    statistics: dict[str, int] = {}
     for complaint in complaints:
-        if complaint["id"] == complaint_id:
-            return complaint
-    return None
+        name = complaint.status.name
+        statistics[name] = statistics.get(name, 0) + 1
+    return statistics
 
 
-def format_complaint(
-    complaint: dict,
-    users: list[dict],
-    objects: list[dict],
-) -> str:
-    """Сформировать строковое представление жалобы для вывода."""
-    user_name = next(
-        (
-            user["name"]
-            for user in users
-            if user["id"] == complaint["user_id"]
-        ),
-        "Неизвестный пользователь",
-    )
-    object_name = next(
-        (
-            item["name"]
-            for item in objects
-            if item["id"] == complaint["object_id"]
-        ),
-        "Неизвестный объект",
-    )
-    return (
-        f"ID: {complaint['id']} | Пользователь: {user_name} | "
-        f"Объект: {object_name} | Статус: {complaint['status']}\n"
-        f"Описание: {complaint['description']} | "
-        f"Дата: {complaint['created_at']}"
-    )
-
-
-def show_complaints(
-    complaints: list[dict],
-    users: list[dict],
-    objects: list[dict],
-) -> None:
+def show_complaints(complaints: list[Complaint]) -> None:
     """Вывести список жалоб."""
     if not complaints:
         print("Жалоб пока нет.")
         return
-
     print("\n--- Жалобы ---")
     for complaint in complaints:
-        print(format_complaint(complaint, users, objects))
+        print(complaint)
         print("-" * 70)

@@ -4,9 +4,9 @@ venv/
 env/
 
 # Кэш Python
-.pytest_cache/
 __pycache__/
 *.py[cod]
+.pytest_cache/
 
 # Файлы IDE
 .idea/
